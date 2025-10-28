@@ -1,4 +1,4 @@
-import { createFFmpeg, fetchFile } from '@ffmpeg/ffmpeg';
+import { createFFmpeg } from '@ffmpeg/ffmpeg';
 import fetch from 'node-fetch';
 
 export default async function handler(req, res) {
@@ -7,28 +7,45 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { url, format } = req.body;
-
+    const { url, format } = req.body || {};
     if (!url || !format) {
       return res.status(400).json({ error: 'Missing parameters: url or format' });
     }
 
+    // Load ffmpeg (single-threaded build)
     const ffmpeg = createFFmpeg({ log: false });
     await ffmpeg.load();
+    // Small settle delay helps in serverless envs
+    await new Promise(r => setTimeout(r, 300));
 
-    // Fetch the file from Google Drive or a remote source
-    const response = await fetch(url);
-    const buffer = Buffer.from(await response.arrayBuffer());
+    // Fetch remote OPUS (or any) file
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      return res.status(400).json({ error: `Failed to fetch source: ${resp.status} ${resp.statusText}` });
+    }
+    const buf = Buffer.from(await resp.arrayBuffer());
 
-    ffmpeg.FS('writeFile', `input.opus`, new Uint8Array(buffer));
+    // Guess an input name/extension; WhatsApp is usually .opus
+    const inputName = 'input.opus';
+    const outputName = `output.${format}`;
 
-    await ffmpeg.run('-i', 'input.opus', `output.${format}`);
+    ffmpeg.FS('writeFile', inputName, new Uint8Array(buf));
 
-    const data = ffmpeg.FS('readFile', `output.${format}`);
+    // Convert → MP3 by default, explicitly set codec
+    // For mp3: libmp3lame; for m4a: aac; for wav: pcm_s16le
+    const args =
+      format === 'mp3'
+        ? ['-i', inputName, '-acodec', 'libmp3lame', outputName]
+        : ['-i', inputName, outputName];
+
+    await ffmpeg.run(...args);
+
+    const data = ffmpeg.FS('readFile', outputName);
 
     res.setHeader('Content-Type', `audio/${format}`);
-    res.send(Buffer.from(data));
+    res.status(200).send(Buffer.from(data));
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Conversion error:', error);
+    res.status(500).json({ error: String(error?.message || error) });
   }
 }
