@@ -9,7 +9,8 @@
     "start": "node api/convert.js"
   },
   "dependencies": {
-    "@ffmpeg.wasm/main": "^0.12.0",
+    "@ffmpeg.wasm/main": "^0.12.4",
+    "@ffmpeg.wasm/core-mt": "^0.12.4",
     "node-fetch": "^3.3.2"
   },
   "engines": {
