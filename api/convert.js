@@ -1,39 +1,34 @@
-import { createFFmpeg, fetchFile } from "@ffmpeg.wasm/main";
+import { createFFmpeg, fetchFile } from '@ffmpeg/ffmpeg';
+import fetch from 'node-fetch';
 
 export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   try {
-    if (req.method !== "POST") {
-      return res.status(405).json({ error: "Method not allowed" });
-    }
-
     const { url, format } = req.body;
+
     if (!url || !format) {
-      return res.status(400).json({ error: "Missing parameters: url or format" });
+      return res.status(400).json({ error: 'Missing parameters: url or format' });
     }
 
-    // Load ffmpeg.wasm
     const ffmpeg = createFFmpeg({ log: false });
-    if (!ffmpeg.isLoaded()) await ffmpeg.load();
+    await ffmpeg.load();
 
-    // Fetch the input audio file
+    // Fetch the file from Google Drive or a remote source
     const response = await fetch(url);
-    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(await response.arrayBuffer());
 
-    // Write file to ffmpeg virtual FS
-    ffmpeg.FS("writeFile", "input", new Uint8Array(arrayBuffer));
+    ffmpeg.FS('writeFile', `input.opus`, new Uint8Array(buffer));
 
-    // Convert using ffmpeg
-    await ffmpeg.run("-i", "input", `output.${format}`);
+    await ffmpeg.run('-i', 'input.opus', `output.${format}`);
 
-    // Read converted output
-    const data = ffmpeg.FS("readFile", `output.${format}`);
+    const data = ffmpeg.FS('readFile', `output.${format}`);
 
-    // Send result
-    res.setHeader("Content-Type", `audio/${format}`);
-    res.status(200).send(Buffer.from(data));
-
+    res.setHeader('Content-Type', `audio/${format}`);
+    res.send(Buffer.from(data));
   } catch (error) {
-    console.error("Conversion error:", error);
     res.status(500).json({ error: error.message });
   }
 }
