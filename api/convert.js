@@ -1,18 +1,18 @@
+import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import ffmpeg from "fluent-ffmpeg";
 import fs from "fs";
 import fetch from "node-fetch";
 import { tmpdir } from "os";
 import path from "path";
 
-export const config = {
-  api: { bodyParser: { sizeLimit: "50mb" } },
-};
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 export default async function handler(req, res) {
   try {
     const { url, format } = req.body;
-    if (!url || !format)
+    if (!url || !format) {
       return res.status(400).json({ error: "Missing parameters: url or format" });
+    }
 
     const inputPath = path.join(tmpdir(), "input.opus");
     const outputPath = path.join(tmpdir(), `output.${format}`);
