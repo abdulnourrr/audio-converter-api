@@ -1,7 +1,7 @@
 {
   "name": "audio-converter-api",
   "version": "1.0.0",
-  "description": "Serverless audio converter API using ffmpeg.wasm for Vercel.",
+  "description": "Serverless audio converter API using @ffmpeg/ffmpeg for Vercel.",
   "main": "api/convert.js",
   "type": "module",
   "scripts": {
@@ -9,8 +9,7 @@
     "start": "node api/convert.js"
   },
   "dependencies": {
-    "@ffmpeg.wasm/main": "^0.12.4",
-    "@ffmpeg.wasm/core-mt": "^0.12.4",
+    "@ffmpeg/ffmpeg": "^0.12.6",
     "node-fetch": "^3.3.2"
   },
   "engines": {
