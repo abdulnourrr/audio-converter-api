@@ -1,38 +1,39 @@
-import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
-import ffmpeg from "fluent-ffmpeg";
-import fs from "fs";
-import fetch from "node-fetch";
-import { tmpdir } from "os";
-import path from "path";
-
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+import { createFFmpeg, fetchFile } from "@ffmpeg.wasm/main";
 
 export default async function handler(req, res) {
   try {
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
     const { url, format } = req.body;
     if (!url || !format) {
       return res.status(400).json({ error: "Missing parameters: url or format" });
     }
 
-    const inputPath = path.join(tmpdir(), "input.opus");
-    const outputPath = path.join(tmpdir(), `output.${format}`);
+    // Load ffmpeg.wasm
+    const ffmpeg = createFFmpeg({ log: false });
+    if (!ffmpeg.isLoaded()) await ffmpeg.load();
 
+    // Fetch the input audio file
     const response = await fetch(url);
-    const buffer = await response.arrayBuffer();
-    fs.writeFileSync(inputPath, Buffer.from(buffer));
+    const arrayBuffer = await response.arrayBuffer();
 
-    await new Promise((resolve, reject) => {
-      ffmpeg(inputPath)
-        .toFormat(format)
-        .on("end", resolve)
-        .on("error", reject)
-        .save(outputPath);
-    });
+    // Write file to ffmpeg virtual FS
+    ffmpeg.FS("writeFile", "input", new Uint8Array(arrayBuffer));
 
-    const file = fs.readFileSync(outputPath);
+    // Convert using ffmpeg
+    await ffmpeg.run("-i", "input", `output.${format}`);
+
+    // Read converted output
+    const data = ffmpeg.FS("readFile", `output.${format}`);
+
+    // Send result
     res.setHeader("Content-Type", `audio/${format}`);
-    res.send(file);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(200).send(Buffer.from(data));
+
+  } catch (error) {
+    console.error("Conversion error:", error);
+    res.status(500).json({ error: error.message });
   }
 }
